@@ -1,0 +1,45 @@
+#DECLARE viewStartDateTime DateTime = DateTime.Parse("2017-06-07");
+#DECLARE viewEndDateTime DateTime = DateTime.Parse("2017-06-08");
+#DECLARE outputFile string = String.Format("/my/FSharpNumbers/latestdev15.tsv");
+
+events =
+    VIEW "/shares/VisualStudio.Critical/public/views/source/telemetry/v5/vs.events.view"
+    PARAMS
+    (
+        StartDate = @viewStartDateTime,
+        EndDate = @viewEndDateTime,
+        UseClientDate = false
+    );
+
+projects = 
+    VIEW "/shares/visualstudio.prod/public/views/curated/project/v2.latest/AIProjectDetails.view"
+    PARAMS
+    (
+        startDate = @viewStartDateTime,
+        endDate = @viewEndDateTime,
+        useClientDate = false
+    );
+
+eventsData = SELECT DISTINCT IsInternal, UserId FROM events WHERE (ExeVersion.Contains("15.0") AND ExeName == "devenv");
+
+projectsData = SELECT DISTINCT UserId FROM projects WHERE ProjectKind == "F#";
+
+query =
+      SELECT 
+         @viewStartDateTime AS Date,
+         eventsData.IsInternal,
+         "F#" AS ProjectKind,
+         COUNT(DISTINCT eventsData.UserId) AS UserCount
+      FROM 
+        eventsData
+            INNER JOIN projectsData
+            ON eventsData.UserId == projectsData.UserId
+      GROUP BY 
+        Date, IsInternal, ProjectKind
+      ORDER BY
+        UserCount;
+
+
+OUTPUT query TO @outputFile;
+
+// VS 2015 release: (ExeVersion == "14.0.23107.0" OR 
